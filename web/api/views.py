@@ -11,8 +11,9 @@ from web.api.serializers import (
     CityCouncilAgendaSerializer,
     CityCouncilAttendanceListSerializer,
     GazetteSerializer,
+    GazetteEventSerializer
 )
-from web.datasets.models import CityCouncilAgenda, CityCouncilAttendanceList, Gazette
+from web.datasets.models import CityCouncilAgenda, CityCouncilAttendanceList, Gazette, GazetteEvent
 
 
 class HealthCheckView(ViewSet):
@@ -77,3 +78,12 @@ class GazetteView(ReadOnlyModelViewSet):
         "events__summary",
         "year_and_edition",
     ]
+
+
+class GazetteEventsView(ListAPIView):
+    serializer_class = GazetteEventSerializer
+    model = GazetteEvent
+
+    def get_queryset(self):
+        gazette_date = self.kwargs['date']
+        return self.model.objects.filter(gazette__date=gazette_date)
