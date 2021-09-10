@@ -43,7 +43,8 @@ class S3Client:
             "bucket_file_path": bucket_file_path,
             "checksum": self._generate_checksum(raw_file_content)
         }
-    
+
+    @staticmethod
     def _create_file_name(url, prefix=None):
         start_index = url.rfind("/") + 1
         if prefix:
