@@ -77,14 +77,16 @@ def backup_file(file_id):
         f"{file_obj.created_at.month}/{file_obj.created_at.day}/"
     )
 
-    s3_url, s3_file_path = client.upload_file(
+    uploaded_infos = client.upload_file(
         file_obj.url, relative_file_path, prefix=file_obj.checksum
     )
-    file_obj.s3_file_path = s3_file_path
-    file_obj.s3_url = s3_url
+
+    file_obj.s3_file_path = uploaded_infos["s3_file_path"]
+    file_obj.s3_url = uploaded_infos["s3_url"]
+    file_obj.checksum = uploaded_infos["checksum"]
     file_obj.save()
 
-    return s3_url
+    return uploaded_infos["s3_url"]
 
 
 @shared_task

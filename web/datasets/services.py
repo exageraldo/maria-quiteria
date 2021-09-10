@@ -1,5 +1,7 @@
 import os
+import io
 from pathlib import Path
+from hashlib import md5
 
 import boto3
 import requests
@@ -17,40 +19,51 @@ class S3Client:
         self.bucket_region = bucket_region
 
     def upload_file(self, url, relative_file_path, prefix=""):
-        bucket_file_path = f"{self.bucket_folder}/files/{relative_file_path}"
-        file_name, temp_file_path = self.create_temp_file(
-            url, relative_file_path, prefix
+        bucket_file_path = (
+            f"{self.bucket_folder}/files/{relative_file_path}"
+            f"{self._create_file_name(url, prefix)}"
         )
-        bucket_file_path = f"{bucket_file_path}{file_name}"
         url = (
             f"https://{self.bucket}.s3.{self.bucket_region}.amazonaws.com/"
             f"{bucket_file_path}"
         )
-        with open(temp_file_path, "rb") as body_file:
-            client.put_object(
-                Bucket=self.bucket,
-                Key=bucket_file_path,
-                Body=body_file,
-                ACL="bucket-owner-full-control",
-            )
 
-        self.delete_temp_file(temp_file_path)
-        return url, bucket_file_path
+        raw_file_content = self._get_raw_file_content_from_url(url)
+        blob_file = self._create_blob_file(raw_file_content)
 
-    @staticmethod
-    def create_temp_file(url, relative_file_path="", prefix=""):
-        temporary_directory = f"{Path.cwd()}/data/tmp/{relative_file_path}"
-        Path(temporary_directory).mkdir(parents=True, exist_ok=True)
+        client.put_object(
+            Bucket=self.bucket,
+            Key=bucket_file_path,
+            Body=blob_file,
+            ACL="bucket-owner-full-control",
+        )
 
-        response = requests.get(url)
+        return {
+            "url": url,
+            "bucket_file_path": bucket_file_path,
+            "checksum": self._generate_checksum(raw_file_content)
+        }
+    
+    def _create_file_name(url, prefix=None):
         start_index = url.rfind("/") + 1
-        temp_file_name = f"{url[start_index:]}"
         if prefix:
-            temp_file_name = f"{prefix}-{temp_file_name}"
-        temp_file_path = f"{temporary_directory}{temp_file_name}"
-        with open(temp_file_path, "wb") as tmp_file:
-            tmp_file.write(response.content)
-        return temp_file_name, temp_file_path
+            return f"{prefix}-{url[start_index:]}"
+        return f"{url[start_index:]}"
+    
+    @staticmethod
+    def _get_raw_file_content_from_url(url):
+        response = requests.get(url)
+        return response.content
+    
+    @staticmethod
+    def _create_blob_file(file_content):
+        blob_content = io.BytesIO(file_content)
+        blob_content.seek(0)
+        return blob_content
+    
+    @staticmethod
+    def _generate_checksum(file_content):
+        return md5(file_content).hexdigest()
 
     def download_file(self, s3_file_path):
         temporary_directory = f"{Path.cwd()}/data/tmp/"
@@ -64,10 +77,6 @@ class S3Client:
             client.download_fileobj(self.bucket, s3_file_path, file_)
 
         return local_path
-
-    @staticmethod
-    def delete_temp_file(temp_file_path):
-        Path(temp_file_path).unlink()
 
 
 class FakeS3Client(S3Client):
